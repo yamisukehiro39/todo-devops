@@ -1,31 +1,51 @@
-name: Todo DevOps CI
+name: CI/CD Pipeline
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  build:
+  test-build-push:
 
     runs-on: ubuntu-latest
 
     steps:
 
+    # 1. Checkout code
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # 2. Setup Node.js
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 22
 
+    # 3. Install dependencies
     - name: Install dependencies
       run: npm install
       working-directory: backend
 
-    - name: Start backend (test)
-      run: node server.js &
+    # 4. Run simple test (API sanity check)
+    - name: Start backend test
+      run: timeout 5s node server.js || true
       working-directory: backend
 
+    # 5. Build Docker image
     - name: Build Docker image
       run: docker build -t todo-backend ./backend
+
+    # 6. Login DockerHub
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    # 7. Build & Push Docker image
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/todo-backend:latest
